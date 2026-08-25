@@ -556,10 +556,10 @@
                 <select id="batchGlobalStrategy" onchange="onBatchGlobalStrategyChange(this)" class="bg-slate-800 text-white text-[10px] font-bold rounded px-1.5 py-0.5 border border-slate-600 min-w-0"></select>
                 <button onclick="closeBatchReviewDrawer()" class="text-gray-400 hover:text-white text-xl font-bold leading-none shrink-0">&times;</button>
             </div>
-            <div id="batchReviewList" class="p-3 overflow-y-auto space-y-2 flex-1 text-sm"></div>
-            <div id="batchPreviewBox" class="mx-3 mb-2 bg-slate-950/70 border border-cyan-500/20 rounded-xl p-2.5">
+            <div id="batchReviewList" class="p-3 overflow-y-auto space-y-1.5 flex-1 text-sm"></div>
+            <div id="batchPreviewBox" class="mx-3 mb-2 bg-slate-950/70 border border-cyan-500/20 rounded-xl p-2">
                 <div class="text-[10px] font-bold text-cyan-300 uppercase mb-1">CSV Preview</div>
-                <div id="batchPreviewBody" class="text-[10px] font-mono-num text-gray-300 space-y-1 max-h-[60vh] overflow-y-auto"></div>
+                <div id="batchPreviewBody" class="text-[10px] font-mono-num text-gray-300 space-y-0.5 max-h-[60vh] overflow-y-auto"></div>
             </div>
             <div id="batchValidationMsg" class="hidden mx-3 mb-2 text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 rounded-lg px-2.5 py-1.5"></div>
             <div class="bg-slate-900/80 px-4 py-3 border-t border-white/10 flex flex-col sm:flex-row justify-end gap-2">
@@ -1943,16 +1943,12 @@
                 return;
             }
             body.innerHTML = trades.flatMap(t => t.built.preview.map((p, i) => `
-                <div class="batch-preview-leg bg-slate-900/60 p-2 rounded-xl border border-white/10 flex justify-between items-center gap-2">
-                    <div>
-                        <div class="text-[10px] text-gray-400 font-bold uppercase">${p.action} ${p.qty} · ${p.oca}</div>
-                        <div class="text-xs font-black text-white">
-                            STP $${p.stop.toFixed(2)}
-                            <span class="text-gray-500">+</span>
-                            LMT <input type="number" step="0.01" id="batch-tp-${p.ticker}-${i}" data-ticker="${p.ticker}" data-leg-idx="${i}" value="${p.tp.toFixed(2)}" class="w-16 bg-slate-800 text-emerald-300 font-mono-num font-bold text-xs px-1 py-0.5 rounded border border-slate-600 text-center" oninput="onBatchPreviewTpInput(this)">
-                            <span class="text-emerald-400">(${p.rr}R${p.stopMode !== 'fixed' ? ' · stop ' + p.stopMode : ''})</span>
-                        </div>
-                    </div>
+                <div class="flex items-center justify-between gap-1.5 text-[10px] font-mono-num">
+                    <span class="text-white font-bold w-14 truncate">${p.ticker}</span>
+                    <span class="w-14 text-center">${p.action} ${p.qty}</span>
+                    <span class="text-red-300 w-16 text-center">STP ${p.stop.toFixed(2)}</span>
+                    <span class="text-emerald-300 w-20 text-center">LMT <input type="number" step="0.01" data-ticker="${p.ticker}" data-leg-idx="${i}" value="${p.tp.toFixed(2)}" class="w-14 bg-slate-800 text-emerald-300 font-mono-num font-bold text-[10px] px-1 py-0 rounded border border-slate-600 text-center" oninput="onBatchPreviewTpInput(this)"></span>
+                    <span class="text-gray-500 w-24 text-right truncate">${p.oca}</span>
                 </div>
             `)).join('');
         }
@@ -1977,15 +1973,15 @@
             }
             trades.forEach((t, idx) => {
                 list.insertAdjacentHTML('beforeend', `
-                    <div class="bg-slate-900/50 border border-white/10 rounded-xl p-2.5 batch-row" data-ticker="${t.ticker}" data-long="${t.isLong}">
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <span class="font-black font-mono-num text-white">${t.ticker}</span>
-                            <span class="text-[10px] font-black ${t.isLong ? 'text-emerald-400' : 'text-rose-400'}">${t.isLong ? 'LONG' : 'SHORT'}</span>
+                    <div class="bg-slate-900/50 border border-white/10 rounded-xl p-2 batch-row flex items-center gap-2" data-ticker="${t.ticker}" data-long="${t.isLong}">
+                        <div class="shrink-0 w-14 leading-none">
+                            <div class="font-black font-mono-num text-white text-sm">${t.ticker}</div>
+                            <div class="text-[9px] font-black ${t.isLong ? 'text-emerald-400' : 'text-rose-400'}">${t.isLong ? 'LONG' : 'SHORT'}</div>
                         </div>
-                        <div class="grid grid-cols-3 gap-1.5">
-                            <label class="text-[9px] text-gray-500 uppercase">Entry<input type="number" step="0.01" oninput="onBatchInput(this)" class="batch-entry w-full bg-slate-800 text-white text-xs font-mono-num font-bold rounded px-1.5 py-1 border border-slate-600 text-center" value="${t.entry.toFixed(2)}"></label>
-                            <label class="text-[9px] text-gray-500 uppercase">Shares<input type="number" step="1" oninput="onBatchInput(this)" class="batch-shares w-full bg-slate-800 text-cyan-300 text-xs font-mono-num font-bold rounded px-1.5 py-1 border border-slate-600 text-center" value="${t.shares}"></label>
-                            <label class="text-[9px] text-gray-500 uppercase">Stop<input type="number" step="0.01" oninput="onBatchInput(this)" class="batch-stop w-full bg-slate-800 text-red-300 text-xs font-mono-num font-bold rounded px-1.5 py-1 border border-slate-600 text-center" value="${t.stop.toFixed(2)}"></label>
+                        <div class="grid grid-cols-3 gap-1 flex-1 min-w-0">
+                            <label class="text-[8px] text-gray-500 uppercase leading-none">Entry<input type="number" step="0.01" oninput="onBatchInput(this)" class="batch-entry w-full bg-slate-800 text-white text-[11px] font-mono-num font-bold rounded px-1 py-0.5 border border-slate-600 text-center" value="${t.entry.toFixed(2)}"></label>
+                            <label class="text-[8px] text-gray-500 uppercase leading-none">Shrs<input type="number" step="1" oninput="onBatchInput(this)" class="batch-shares w-full bg-slate-800 text-cyan-300 text-[11px] font-mono-num font-bold rounded px-1 py-0.5 border border-slate-600 text-center" value="${t.shares}"></label>
+                            <label class="text-[8px] text-gray-500 uppercase leading-none">Stop<input type="number" step="0.01" oninput="onBatchInput(this)" class="batch-stop w-full bg-slate-800 text-red-300 text-[11px] font-mono-num font-bold rounded px-1 py-0.5 border border-slate-600 text-center" value="${t.stop.toFixed(2)}"></label>
                         </div>
                     </div>
                 `);
