@@ -638,7 +638,8 @@
             shares: 0,
             stopPrice: 0,
             refBound: 0, // LOD for long, HOD for short
-            strategyId: 'opt1'
+            strategyId: 'opt1',
+            customTps: []
         };
 
         // Active Trades Log
@@ -1596,7 +1597,8 @@
                 shares: parseInt(shares) || 0,
                 stopPrice: parseFloat(stopPrice) || 0,
                 refBound: parseFloat(refBound) || 0,
-                strategyId: defaultStrategyId(!!isLong)
+                strategyId: defaultStrategyId(!!isLong),
+                customTps: []
             };
 
             try {
@@ -1653,6 +1655,7 @@
             const sel = document.getElementById('modalStrategySelect');
             if (!sel) return;
             currentModalState.strategyId = sel.value;
+            currentModalState.customTps = [];
             recalcModalOrders();
         }
 
@@ -1676,21 +1679,26 @@
             const cardsContainer = document.getElementById('modalOrdersCardsContainer');
             const ruleText = document.getElementById('modalStrategyRuleText');
 
-            const built = buildExitLegs(currentModalState.ticker, isLong, entry, shares, stop, strategyId);
+            const built = buildExitLegs(currentModalState.ticker, isLong, entry, shares, stop, strategyId, currentModalState.customTps);
             if (!built.ok) {
                 cardsContainer.innerHTML = `<div class="p-3 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300 text-xs text-center font-bold">${built.error}</div>`;
                 return;
             }
             ruleText.innerText = (built.strategy && built.strategy.name ? built.strategy.name + ' · ' : '') + 'Exit at the 5th day. TIF GTC.';
-            cardsContainer.innerHTML = built.preview.map(p => `
+            cardsContainer.innerHTML = built.preview.map((p, i) => `
                 <div class="bg-slate-900/60 p-2.5 rounded-xl border border-white/10 flex justify-between items-center gap-2">
                     <div>
                         <div class="text-[10px] text-gray-400 font-bold uppercase">${p.action} ${p.qty} · ${p.oca}</div>
-                        <div class="text-xs font-black text-white">STP $${p.stop.toFixed(2)} <span class="text-gray-500">+</span> LMT $${p.tp.toFixed(2)} <span class="text-emerald-400">(${p.rr}R${p.stopMode!=='fixed'?' · stop '+p.stopMode:''})</span></div>
+                        <div class="text-xs font-black text-white">
+                            STP $${p.stop.toFixed(2)}
+                            <span class="text-gray-500">+</span>
+                            LMT <input type="number" step="0.01" id="modal-tp-${i}" data-leg-idx="${i}" value="${p.tp.toFixed(2)}" class="w-16 bg-slate-800 text-emerald-300 font-mono-num font-bold text-xs px-1 py-0.5 rounded border border-slate-600 text-center" oninput="onModalTpInput(this, ${i})">
+                            <span class="text-emerald-400">(${p.rr}R${p.stopMode!=='fixed'?' · stop '+p.stopMode:''})</span>
+                        </div>
                     </div>
                     <div class="flex gap-1">
                         <button onclick="copySingleValue('${p.stop.toFixed(2)}', this)" class="bg-slate-800 text-red-300 border border-red-500/30 px-2 py-1 rounded text-[10px] font-bold">Stop</button>
-                        <button onclick="copySingleValue('${p.tp.toFixed(2)}', this)" class="bg-slate-800 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold">TP</button>
+                        <button onclick="copyModalTp(${i}, this)" class="bg-slate-800 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold">TP</button>
                     </div>
                 </div>
             `).join('');
@@ -1704,6 +1712,31 @@
             });
         }
 
+        function onModalTpInput(el, i) {
+            const v = parseFloat(el.value);
+            if (!isNaN(v) && v > 0) {
+                currentModalState.customTps[i] = v;
+            } else {
+                currentModalState.customTps[i] = null;
+            }
+        }
+
+        function copyModalTp(i, btn) {
+            const el = document.getElementById(`modal-tp-${i}`);
+            const val = el ? el.value : '';
+            if (val) copySingleValue(val, btn);
+        }
+
+        function readCustomTpsFromDom() {
+            const tps = [];
+            document.querySelectorAll('#modalOrdersCardsContainer input[data-leg-idx]').forEach(el => {
+                const i = parseInt(el.dataset.legIdx);
+                const v = parseFloat(el.value);
+                tps[i] = (!isNaN(v) && v > 0) ? v : null;
+            });
+            return tps;
+        }
+
         function copyModalSummary() {
             const entry = parseFloat(document.getElementById('modalEntryPrice').value) || 0;
             const shares = parseInt(document.getElementById('modalShares').value) || 0;
@@ -1711,7 +1744,8 @@
             const ticker = currentModalState.ticker;
             const isLong = currentModalState.isLong;
             const strategyId = document.getElementById('modalStrategySelect').value || currentModalState.strategyId;
-            const built = buildExitLegs(ticker, isLong, entry, shares, stop, strategyId);
+            const customTps = readCustomTpsFromDom();
+            const built = buildExitLegs(ticker, isLong, entry, shares, stop, strategyId, customTps);
             if (!built.ok) { alert(built.error); return; }
             const legs = built.preview.map(p => `${p.qty}sh STP $${p.stop.toFixed(2)} / LMT $${p.tp.toFixed(2)} (${p.rr}R)`).join(' | ');
             const summary = `[IBKR ${isLong ? 'LONG' : 'SHORT'} GTC] ${ticker} | ${shares} sh @ $${entry.toFixed(2)} | ${built.strategy.name} | ${legs}`;
@@ -1721,7 +1755,7 @@
         // ========================================================
         // TWS BASKETTRADER CSV GENERATOR (PURE EXIT OCA)
         // ========================================================
-        const TWS_CSV_HEADERS = ["Action", "Quantity", "Symbol", "SecType", "Exchange", "Currency", "TimeInForce", "OrderType", "LmtPrice", "AuxPrice", "BasketTag", "OCA_Group"];
+        const TWS_CSV_HEADERS = ["Action", "Quantity", "Symbol", "SecType", "Exchange", "Currency", "TimeInForce", "OrderType", "LmtPrice", "AuxPrice", "BasketTag", "OcaGroup"];
 
         function splitSharesByPct(total, pcts) {
             const raw = pcts.map(p => (total * p) / 100);
@@ -1751,7 +1785,7 @@
             return null;
         }
 
-        function buildExitLegs(ticker, isLong, entry, shares, stop, strategyId) {
+        function buildExitLegs(ticker, isLong, entry, shares, stop, strategyId, customTps) {
             const err = validateTradeParams(isLong, entry, shares, stop);
             if (err) return { ok: false, error: err, rows: [], preview: [] };
             const strat = getStrategyById(strategyId || defaultStrategyId(isLong));
@@ -1764,11 +1798,13 @@
             strat.legs.forEach((leg, i) => {
                 const qty = qtys[i];
                 if (!qty) return;
-                const tp = isLong ? entry + Number(leg.rr) * rps : entry - Number(leg.rr) * rps;
+                const defaultTp = isLong ? entry + Number(leg.rr) * rps : entry - Number(leg.rr) * rps;
+                const customTp = Array.isArray(customTps) && customTps[i] > 0 ? customTps[i] : null;
+                const tp = customTp || defaultTp;
                 const stp = stopPriceForLeg(isLong, entry, stop, leg.stopMode || 'fixed');
                 const oca = `${ticker}_${strat.id}_L${i + 1}`;
-                rows.push([action, qty, ticker, "STK", "SMART", "USD", "GTC", "STP", "0", stp.toFixed(2), ticker, oca]);
-                rows.push([action, qty, ticker, "STK", "SMART", "USD", "GTC", "LMT", tp.toFixed(2), "0", ticker, oca]);
+                rows.push([action, qty, ticker, "STK", "SMART", "USD", "GTC", "STP", '', stp.toFixed(2), ticker, oca]);
+                rows.push([action, qty, ticker, "STK", "SMART", "USD", "GTC", "LMT", tp.toFixed(2), '', ticker, oca]);
                 preview.push({ ticker, action, qty, stop: stp, tp, rr: leg.rr, oca, stopMode: leg.stopMode || 'fixed' });
             });
             if (!rows.length) return { ok: false, error: 'Strategy produced 0 shares (size too small)', rows: [], preview: [] };
@@ -1802,7 +1838,8 @@
             const ticker = currentModalState.ticker;
             const isLong = currentModalState.isLong;
             const strategyId = document.getElementById('modalStrategySelect').value || currentModalState.strategyId;
-            const built = buildExitLegs(ticker, isLong, entry, shares, stop, strategyId);
+            const customTps = readCustomTpsFromDom();
+            const built = buildExitLegs(ticker, isLong, entry, shares, stop, strategyId, customTps);
             if (!built.ok) {
                 alert(built.error);
                 return;
@@ -1962,10 +1999,12 @@
                 .filter(t => t && selectedTickers.has(t.ticker));
         }
 
-        function logTradeRecord(t) {
+        function logTradeRecord(t, tpValues) {
             const rps = t.isLong ? (t.entry - t.stop) : (t.stop - t.entry);
             const strat = getStrategyById(t.strategyId || defaultStrategyId(t.isLong));
-            const tps = (strat.legs || []).map(l => t.isLong ? t.entry + l.rr * rps : t.entry - l.rr * rps);
+            const tps = Array.isArray(tpValues)
+                ? tpValues
+                : (strat.legs || []).map(l => t.isLong ? t.entry + l.rr * rps : t.entry - l.rr * rps);
             activeTradesLog.unshift({
                 id: Date.now() + Math.random(),
                 ticker: t.ticker,
@@ -2085,7 +2124,10 @@
             const strategyId = document.getElementById('modalStrategySelect').value || currentModalState.strategyId;
             const err = validateTradeParams(isLong, entry, shares, stop);
             if (err) { alert(err); return; }
-            logTradeRecord({ ticker, isLong, entry, shares, stop, strategyId });
+            const customTps = readCustomTpsFromDom();
+            const built = buildExitLegs(ticker, isLong, entry, shares, stop, strategyId, customTps);
+            const tpValues = built.ok ? built.preview.map(p => p.tp) : null;
+            logTradeRecord({ ticker, isLong, entry, shares, stop, strategyId }, tpValues);
             saveActiveTradesLog();
             updateActiveTradesCountBadge();
             alert(`Trade for ${ticker} logged successfully in Active Trades!`);
